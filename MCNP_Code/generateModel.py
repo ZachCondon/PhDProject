@@ -3,6 +3,7 @@
 from datetime import datetime
 import os
 import shutil
+import math
 
 def make_today_dir():
     # This function makes a new folder using today's date. This folder is the
@@ -51,35 +52,109 @@ def make_run_dir():
             print("There are already two directories for this minute. Please just wait a minute.")
     return path, new_directory
 
-def write_run_notes(run_path,current_time_directory,num_runs):
+def write_run_notes(run_path,current_time_directory,num_runs,source_text):
     # This function writes a .txt file and allows me to input notes for each 
     #  run. Ideally, I will have set things that I will record each time, but
     #  I am sure as I move forward, I will learn more things that I need to 
     #  keep track of.
     run_notes = open(run_path + '\\notes_' + current_time_directory + '.txt',"x")
     now = datetime.now()
-    run_notes.write(f'PNS model notes for run at {now.strftime("%Y-%m-%d_%H%M")} \n')
-    run_notes.write(f'There are {num_runs} energy bins in this run \n')
-    run_notes.write('In case the run times out, the file *_cont.bash will continue the run.\n')
+    run_notes.write(f'*****Notes for PNS model run generated at {now.strftime("%Y-%m-%d_%H%M")}*****. \n')
+    run_notes.write('\n')
+    run_notes.write(f'    Number of energy bins: {num_runs}. \n')
+    run_notes.write('    Source information' + source_text + '\n')
+    run_notes.write('\n')
+    run_notes.write('    NOTE: In case the run times out, the file *_cont.bash will continue the run.\n')
     run_notes.write('\n')
     notes_input = 'start notes'
+    print("Write notes here. After each sentence, hit 'enter'\n")
+    print("To stop writing notes, type 'end'\n")
     while notes_input != 'end':
         notes_input = input('Write notes here, line by line: ')
         run_notes.write(notes_input + ' \n')
+
+def define_which_source(which_source,E_bins,sdef_list):
+    # This function is important in that it defines what neutron source is used
+    #  in each input deck. Within each if statement is a for loop that appends
+    #  the sdef_list array with a line of text for each energy bin. Right now, 
+    #  there are 84 energy bins and the sdef_list array will have 84 entries,
+    #  which will get iteratively put into each of the input decks. There is
+    #  also an sdef_mod variable that gets introduced. This will contain
+    #  specifics/modifications for the source. It can be a range of things, but
+    #  one example is that it is used to distribute the source and define the 
+    #  emission probabilities.
+    # Source 1 - The original source used by Paige Witter. I used it to 
+    #  recreate her work and verify that I was getting the same results. It is
+    #  a planar source that is as large as the PNS assembly (sphere and stand).
+    #  The neutrons are always emitted perpendicular to the source plane,
+    #  distributed linearly anywhere from the source plane.
+    # Source 2 (Currently not working, I think I just need to change the
+    #  material so that there isn't a void between the detector and source) - 
+    #  This is my first attempt at changing the source. I am attempting to
+    #  create a spherical source directed inward. I don't have any modifiations
+    #  on the emission direction, so the particles are emitted in any inward 
+    #  direction from the source sphere.
+    # Source 3 - This is a single-energy, point source located at x=30 cm that 
+    #  emits particles in a cone directed at the sphere. The cone ensures that
+    #  9 in 10 particles (see SB1 line) is directed at the PNS.
+    # Source 4 - This source will be a point source located at x=30 cm
+    #  consisting of a range of energies. It consists of the original 84 
+    #  energies that from the original PNS design.
+    if which_source == 1:
+        for E in E_bins:
+            sdef_list.append("sdef X=25 Y=D1 Z=D2 EXT=0 VEC=-1 0 0 DIR=1 PAR=N ERG="+str(E)+" EFF=0.000001\n")
+        sdef_mod = ["si1 H -16 16\n",
+                    "sp1 D 0 1\n",
+                    "si2 H -31.16 16\n",
+                    "sp2 D 0 1\n"]
+        source_text = 'Source 1: Plane source emitted toward detector (original source).'
+    elif which_source == 2:
+        for E in E_bins:
+            sdef_list.append("SDEF   SUR=999   NRM=-1   PAR=N   ERG="+str(E)+"\n")
+        sdef_mod = []
+        source_text = 'Source 2: Spherical shell encompassing detector, emitting inward.'
+    elif which_source == 3:
+        source_pos = 30 # this is the position of the source from the origin
+        for E in E_bins:
+            sdef_list.append("SDEF   POS="+str(source_pos)+" 0 0 ERG="+str(E)+" PAR=N  VEC=-1 0 0  DIR=d1\n")
+        cos_value = round(math.cos(math.atan(15/source_pos)),2)
+        sdef_mod = ["SI1  -1   0.9   1\n",
+                    "SP1  0    "+str(1+cos_value)+"  "+str(1-cos_value)+"\n",
+                    "SB1  0    1     9\n"]
+        source_text = 'Source 3: A point source emitting radiation in a cone that encompasses only the detector.'
+    return source_text, sdef_mod
             
 def initialize_PNS_deck(run_path,filename,Ebin,Ebin_name):
-    
+    # This function makes a new file for each input deck. It also writes the
+    #  first line of the input deck.
+    # Input variables
+        # run_path - This variable is a string that is defined in the function 
+        #  make_run_dir(), which returns it as the variable 'path'. It is hard 
+        #  coded for my directory path, so that the input decks are always 
+        #  saved in the same area.
+        #  Example: 'C:/Users/zacht/OneDrive/OSU/Research/MCNP/PNS Model/YYYY-MM-DD'
+        # filename - This variable is a string that is defined in the function
+        #  write_PNS_input(), which returns it as the variable 'filename'. It
+        #  is iterated in a for loop so that each input deck has a unique name.
+        #  Example: '/PNS_X.XXeXMeV'
+        # Ebin - This variable is a list of doubles and is defined in the file
+        #  automatePNS.py. It contains each of the 84 energy bins.
+        # Ebin_name - This variable is a list of strings and is defined in the
+        #  file automatePNS.py. It contains a string for each of the 84 energy
+        #  bins so that each filename can be consistent.
     PNS_model = open(run_path + filename,"x")
     PNS_model.write("MCNP6 model of the LLNL PNS sphere ("+ str(Ebin)+ " MeV)\n")
     PNS_model.close()
     
 def TRCL(new_cell_num, like_cell_num, x_shift, y_shift, z_shift):
+    # There are a lot of TRCLs in the input deck and this function just makes 
+    #  it easy to call this instead of writing out each TRCL.
     return str(new_cell_num)+ " LIKE " + str(like_cell_num)+ " BUT TRCL= ("+ str(x_shift) + " "+ str(y_shift)+ " "+ str(z_shift)+ ")\n"
 
 def write_cell_card(run_path,filename):
-    # This function will write all of the cell cards for the PNS. The cell cards
-    # include the air around the sphere, the poly sphere, and the TLDs. It accounts
-    # for the air within the cylinders than contain the TLDs.
+    # This function writes all of the cell cards. It uses the two variables
+    #  'run_path' and 'filename' to be able to open the input deck file and 
+    #  append each line. 
     imp1 = "imp:n=1 imp:a=1 imp:p=1 imp:e=1"
     imp3 = "imp:n=3 imp:a=3 imp:p=3 imp:e=3"
     PNS_model = open(run_path + filename,"a")
@@ -496,6 +571,16 @@ def write_cell_card(run_path,filename):
     PNS_model.close()
 
 def write_surf_card(run_path,filename,which_source):
+    # This function writes all of the surfaces within the PNS. It uses the 
+    #  variables 'run_path' and 'filename' to open each input deck as this 
+    #  function is called and it appends each line to the input deck. The
+    #  variable 'which_source' isn't used yet, but will probably be used if I 
+    #  start using more distributed sources so that the source surface can be
+    #  adjusted based on the 'which_source' input. The below variables are the 
+    #  definitions of some of sizes and locations of various aspects of the 
+    #  PNS. It looked cleaner to put them all in the front end rather than 
+    #  spread sporadically. This also allowed for using for loops instead of 
+    #  hardcoding each line for each position.
     r = 15.1225                 # Sphere radius
     r_cyl = 1.89103             # Cylinder radius
     TLD_slot_w_min = -0.5       # Min value for width of slot for TLD
@@ -600,6 +685,9 @@ def write_surf_card(run_path,filename,which_source):
     PNS_model.close()
     
 def write_material_card(run_path,filename):
+    # This card defines all of the materials in the input deck and writes the
+    #  associated card for them. I don't anticipate this will change much, but
+    #  maybe later in the project it will.
     PNS_model = open(run_path + filename, "a")
     PNS_model.write("C    ************MATERIAL CARD************\n")
     PNS_model.write("C    Moist air from LLNL PNS; Other materials from PNNL Materials Compendium\n")
@@ -624,6 +712,10 @@ def write_material_card(run_path,filename):
     PNS_model.close()
 
 def write_source_card(run_path,filename,sdef,sdef_mod):
+    # This card writes in the source information using the 'sdef' and 
+    #  'sdef_mod' variables, which are chosen in the function 
+    #  define_which_source(). The for loop below iterates through all of the 
+    #  strings within the 'sdef_mod' variable.
     PNS_model = open(run_path + filename, "a")
     PNS_model.write("C    *************SOURCE CARD*************\n")
     PNS_model.write("mode  n a p e  $ Transport neutrons\n")
@@ -635,6 +727,8 @@ def write_source_card(run_path,filename,sdef,sdef_mod):
     PNS_model.close()
     
 def write_tally_card(run_path, filename):
+    # This card writes all of the tally commands. I'm working based off of
+    #  Paige's example and for some reason, she only has tallies on the Li-6.
     PNS_model = open(run_path + filename, "a")
     PNS_model.write("C    *************TALLY CARD**************\n")
     PNS_model.write("C Tally cards: Need gamma/alpha/nuetron energy deposition in each detector.\n")
@@ -701,6 +795,8 @@ def write_tally_card(run_path, filename):
     PNS_model.close()
 
 def write_print_card(run_path,filename,nps):
+    # This card writes the print commands to record tallies at various nps's 
+    #  throughout the run.
     PNS_model = open(run_path + filename, "a")
     PNS_model.write("C    *************PRINT CARD**************\n")
     PNS_model.write("dbcn  7j  1 0 0 0 0 154917 j\n") # This appears to be a debugging code?
@@ -710,6 +806,8 @@ def write_print_card(run_path,filename,nps):
     PNS_model.write("nps  "+nps+"\n")
     
 def write_sbatch(run_path,dir1,dir2,Ebins,Ebin_names,numNodes,numCores):
+    # This function writes the SBATCH file which is what is needed to run these
+    #  input decks on Quartz.
     sbatch_file = open(run_path + '\\' + dir1 + "batch.bash","x",newline='\n')
     sbatch_file.write("#!/bin/csh\n")
     sbatch_file.write("#SBATCH -N " + str(len(Ebins)) + "\n")
@@ -741,6 +839,8 @@ def write_sbatch(run_path,dir1,dir2,Ebins,Ebin_names,numNodes,numCores):
     sbatch_file.close()
     
 def write_sbatch_continuation(run_path,dir1,dir2,Ebins,Ebin_names,numNodes,numCores):
+    # Quartz has a 24 hour time limit. In case that limit gets hit by the first
+    #  batch file, this one will take the runtp files and continue the run.
     sbatch_file = open(run_path + '\\' + dir1 + "batch_cont.bash","x",newline='\n')
     sbatch_file.write("#!/bin/csh\n")
     sbatch_file.write("#SBATCH -N " + str(len(Ebins)) + "\n")
@@ -771,23 +871,27 @@ def write_sbatch_continuation(run_path,dir1,dir2,Ebins,Ebin_names,numNodes,numCo
     sbatch_file.write("echo 'Done'")
     sbatch_file.close()
 
-def write_PNS_input(Ebins,Ebin_names,sdef_list,sdef_mod,nps,which_source,numNodes,numCores):
+def write_PNS_input(Ebins,Ebin_names,sdef_list,nps,which_source,numNodes,numCores):
+    # This is the main function that calls all of the other functions to write
+    #  the PNS input decks and batch files.
     sbatch_dir1 = make_today_dir()
     path,sbatch_dir2 = make_run_dir()
-    num_runs = len(Ebins)
-    write_run_notes(path,sbatch_dir2,num_runs) 
-    write_sbatch(path,sbatch_dir1,sbatch_dir2,Ebins,Ebin_names,numNodes,numCores)
-    write_sbatch_continuation(path,sbatch_dir1,sbatch_dir2,Ebins,Ebin_names,numNodes,numCores)
+    if which_source == 1 or 2 or 3 or 4:
+        num_runs = len(Ebins)
+        source_text, sdef_mod = define_which_source(which_source, Ebins, sdef_list)
+        write_run_notes(path,sbatch_dir2,num_runs,source_text)
+        write_sbatch(path,sbatch_dir1,sbatch_dir2,Ebins,Ebin_names,numNodes,numCores)
+        write_sbatch_continuation(path,sbatch_dir1,sbatch_dir2,Ebins,Ebin_names,numNodes,numCores)
     
-    for E in range(num_runs):
-        filename = "\PNS_" + Ebin_names[E]
-        initialize_PNS_deck(path,filename,Ebins[E],Ebin_names[E])
-        write_cell_card(path,filename)
-        write_surf_card(path,filename,which_source)
-        write_material_card(path,filename)
-        write_source_card(path,filename,sdef_list[E],sdef_mod)
-        write_tally_card(path,filename)
-        write_print_card(path,filename,nps)
+        for E in range(num_runs):
+            filename = "\PNS_" + Ebin_names[E]
+            initialize_PNS_deck(path,filename,Ebins[E],Ebin_names[E])
+            write_cell_card(path,filename)
+            write_surf_card(path,filename,which_source)
+            write_material_card(path,filename)
+            write_source_card(path,filename,sdef_list[E],sdef_mod)
+            write_tally_card(path,filename)
+            write_print_card(path,filename,nps)
     
     # Copy files from cloud-saved directory to a directory for transferring to 
     #  LLNL's quartz computer.

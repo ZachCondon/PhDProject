@@ -1,11 +1,77 @@
 # Script to automate multiple PNS model runs
 import generateModel as gm
 
-# E_bins = [1e-2,1e-1,1]
-# E_bin_names = ["10keV", "100keV", "1000keV"]
-nps = "6e8"
+# ---------------------------------------------------------------------------
+# |                              Automate PNS                               |
+# ---------------------------------------------------------------------------
+# This script generates MCNP input decks and the required batch script file to 
+#  run those input decks on LLNL's Quartz supercomputer.
+# The input parameters needed are:                          | Variable Name  |
+    # The number of particles in the run                    |     nps        |
+    # The number of compute nodes that will be requested    |   numNodes     |
+    # The number of cores each input deck will request      |   numCores     |
+    # The neutron source                                    | which_source   |
+        # This variable is used within a function in        |                |
+        #  generateModel that has each source explicitly    |                |
+        #  written. See below for more specifics.           |                |
+    # A source list (initialized, but empty) that is filled |                |
+    #  in with a function in generateModel                  |   sdef_list    |
+    # The neutron energies in each input deck               |    E_bins      |
+    # The names of each of those bins, used for             |                |
+    #  standardizing the naming scheme                      | E_bins_names   |
+# The outputs of this script are:
+    # 84 MCNP input decks that are identical except for the neutron energy.*
+        # *this will likely change because I would like to incorporate sources 
+        #   that are a spectrum of energies, each with their own probability. 
+        #   This will make developing training data much easier to automate.
+    # A bash file that is used to send these input decks to the supercomputer.
+    # A continuation bash file that will pick up the MCNP run just in case it
+    #  times out on quartz. There is a 24 hour job time-limit on quartz. This 
+    #  continuation file should only be used once. If I run into a situation in
+    #  which more than 48 hours is needed, I will need to modify this file.
+    # A notes file. Upon running this script, the user is asked for prompts. 
+    #  These prompts will be recorded in this file and should contain relevant
+    #  information regarding the creation of these input decks. 
+# Instructions to run these input decks on Quartz:
+    # Open up the unix terminal
+    # Navigate to the quartzTransfer directory
+    # Change permissions for the whole directory
+        # chmod -R 'directory name'
+    # SFTP into the Quartz computer while in the quartzTransfer directory
+        # sftp condon3@quartz.llnl.gov
+        # Navigate to the directory you want to put the info in
+        # put -R 'directory name'
+        # exit
+    # SSH into the Quartz computer
+        # ssh condon3@quartz.llnl.gov
+    # Navigate to within the directory with all of the input decks
+    # sbatch 'sbatch file name'
+
+# ---------------------------------------------------------------------------
+# |                            Input Parameters                             |
+# ---------------------------------------------------------------------------
+# The following input parameters can be changed, but probably not often. The 
+#  one I expect to be adjusted most often is the neutron source. I would like
+#  automate a randomized source for neutrons. I think a point source will be 
+#  easiest to randomize, but I will also need to look into distributed sources,
+#  such as a line source or a plane source.
+nps = "1e7"
 numNodes = 1
 numCores = 1
+# Below are the source options
+# Option 1 is the original source, which is a plane source directing particles 
+#  to the detector. This source seems to imitate a neutron beam.
+# Option 2 is a spherical shell source directing particles inward
+# Option 3 (not implemented yet) will be a point source that will direct
+#  particles only at the detector with the appropriate weighting.
+which_source = 3
+sdef_list = []
+
+# As of right now, the following parameters should NOT be changed. These are 
+#  hard coded energy bins used to generate the input decks. For consistency in
+#  this research, these bins should not be modified. Later efforts, when I'm 
+#  incorporating a source that includes a range of energy, this parameter may
+#  actually be moved to be within the generateModel function.
 E_bins = [1e-9,1.58e-9,2.51e-9,3.98e-9,6.31e-9,
           1e-8,1.58e-8,2.51e-8,3.98e-8,6.31e-8,
           1e-7,1.58e-7,2.51e-7,3.98e-7,6.31e-7,
@@ -20,39 +86,24 @@ E_bins = [1e-9,1.58e-9,2.51e-9,3.98e-9,6.31e-9,
           1e1,1.12e1,1.26e1,1.41e1,1.58e1,1.78e1,2e1,2.51e1,3.16e1,3.98e1,
           5.01e1,6.31e1,7.94e1,1e2]
 
-E_bin_names = ["1e-9keV","1.58e-9keV","2.51e-9keV","3.98e-9keV","6.31e-9keV",
-               "1e-8keV","1.58e-8keV","2.51e-8keV","3.98e-8keV","6.31e-8keV",
-               "1e-7keV","1.58e-7keV","2.51e-7keV","3.98e-7keV","6.31e-7keV",
-               "1e-6keV","1.58e-6keV","2.51e-6keV","3.98e-6keV","6.31e-6keV",
-               "1e-5keV","1.58e-5keV","2.51e-5keV","3.98e-5keV","6.31e-5keV",
-               "1e-4keV","1.58e-4keV","2.51e-4keV","3.98e-4keV","6.31e-4keV",
-               "1e-3keV","1.58e-3keV","2.51e-3keV","3.98e-3keV","6.31e-3keV",
-               "1e-2keV","1.58e-2keV","2.51e-2keV","3.98e-2keV","6.31e-2keV",
-               "1e-1keV","1.26e-1keV","1.58e-1keV","2e-1keV","2.51e-1keV",
-               "3.16e-1keV","3.98e-1keV","5.01e-1keV","6.31e-1keV","7.94e-1keV",
-               "1e0keV","1.12e0keV","1.26e0keV","1.41e0keV","1.58e0keV",
-               "1.78e0keV","2e0keV","2.24e0keV","2.51e0keV","2.82e0keV",
-               "3.16e0keV","3.55e0keV","3.98e0keV","4.47e0keV","5.01e0keV",
-               "5.62e0keV","6.31e0keV","7.08e0keV","7.94e0keV","8.91e0keV",
-               "1e1keV","1.12e1keV","1.26e1keV","1.41e1keV","1.58e1keV",
-               "1.78e1keV","2e1keV","2.51e1keV","3.16e1keV","3.98e1keV",
-               "5.01e1keV","6.31e1keV","7.94e1keV","1e2keV"]
-# for Ebin in E_bins:
-#     E_bin_names.append(str(Ebin)+"MeV")
-sdef_list = []
-# Below are the source options
-# Option 1 is the original source, which is a plane source directing particles to the detector
-# Option 2 is a spherical shell source directing particles inward
-which_source = 1
-if which_source == 1:
-    for E in E_bins:
-        sdef_list.append("sdef X=25 Y=D1 Z=D2 EXT=0 VEC=-1 0 0 DIR=1 PAR=N ERG="+str(E)+" EFF=0.000001\n")
-    sdef_mod = ["si1 H -16 16\n",
-                "sp1 D 0 1\n",
-                "si2 H -31.16 16\n",
-                "sp2 D 0 1\n"]
-elif which_source == 2:
-    for E in E_bins:
-        sdef_list.append("SDEF   SUR=999   NRM=-1   PAR=N   WGT=7.854e3\n")
-    sdef_mod = []
-gm.write_PNS_input(E_bins,E_bin_names,sdef_list,sdef_mod,nps,which_source,numNodes,numCores)
+E_bin_names = ["1e-9MeV","1.58e-9MeV","2.51e-9MeV","3.98e-9MeV","6.31e-9MeV",
+               "1e-8MeV","1.58e-8MeV","2.51e-8MeV","3.98e-8MeV","6.31e-8MeV",
+               "1e-7MeV","1.58e-7MeV","2.51e-7MeV","3.98e-7MeV","6.31e-7MeV",
+               "1e-6MeV","1.58e-6MeV","2.51e-6MeV","3.98e-6MeV","6.31e-6MeV",
+               "1e-5MeV","1.58e-5MeV","2.51e-5MeV","3.98e-5MeV","6.31e-5MeV",
+               "1e-4MeV","1.58e-4MeV","2.51e-4MeV","3.98e-4MeV","6.31e-4MeV",
+               "1e-3MeV","1.58e-3MeV","2.51e-3MeV","3.98e-3MeV","6.31e-3MeV",
+               "1e-2MeV","1.58e-2MeV","2.51e-2MeV","3.98e-2MeV","6.31e-2MeV",
+               "1e-1MeV","1.26e-1MeV","1.58e-1MeV","2e-1MeV","2.51e-1MeV",
+               "3.16e-1MeV","3.98e-1MeV","5.01e-1MeV","6.31e-1MeV","7.94e-1MeV",
+               "1e0MeV","1.12e0MeV","1.26e0MeV","1.41e0MeV","1.58e0MeV",
+               "1.78e0MeV","2e0MeV","2.24e0MeV","2.51e0MeV","2.82e0MeV",
+               "3.16e0MeV","3.55e0MeV","3.98e0MeV","4.47e0MeV","5.01e0MeV",
+               "5.62e0MeV","6.31e0MeV","7.08e0MeV","7.94e0MeV","8.91e0MeV",
+               "1e1MeV","1.12e1MeV","1.26e1MeV","1.41e1MeV","1.58e1MeV",
+               "1.78e1MeV","2e1MeV","2.51e1MeV","3.16e1MeV","3.98e1MeV",
+               "5.01e1MeV","6.31e1MeV","7.94e1MeV","1e2MeV"]
+
+# This last line of code initiates the execution that generates the input decks
+#  and batch files.
+gm.write_PNS_input(E_bins,E_bin_names,sdef_list,nps,which_source,numNodes,numCores)
