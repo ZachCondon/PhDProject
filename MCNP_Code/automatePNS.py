@@ -55,7 +55,7 @@ import generateModel as gm
 #  automate a randomized source for neutrons. I think a point source will be 
 #  easiest to randomize, but I will also need to look into distributed sources,
 #  such as a line source or a plane source.
-nps = "1e7"
+nps = "1e6"
 numNodes = 1
 numCores = 1
 # Below are the source options
@@ -64,7 +64,7 @@ numCores = 1
 # Option 2 is a spherical shell source directing particles inward
 # Option 3 (not implemented yet) will be a point source that will direct
 #  particles only at the detector with the appropriate weighting.
-which_source = 3
+which_source = 4
 sdef_list = []
 
 # As of right now, the following parameters should NOT be changed. These are 

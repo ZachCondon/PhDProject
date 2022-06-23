@@ -4,6 +4,7 @@ from datetime import datetime
 import os
 import shutil
 import math
+import random
 
 def make_today_dir():
     # This function makes a new folder using today's date. This folder is the
@@ -72,6 +73,21 @@ def write_run_notes(run_path,current_time_directory,num_runs,source_text):
     while notes_input != 'end':
         notes_input = input('Write notes here, line by line: ')
         run_notes.write(notes_input + ' \n')
+    run_notes.write('If this is a broad spectrum source, energy info will be below in order from lowest to highest energy:')
+    run_notes.close()
+    
+def append_run_notes(run_path,current_time_directory,i,source_strength):
+    # This function writes a .txt file and allows me to input notes for each 
+    #  run. Ideally, I will have set things that I will record each time, but
+    #  I am sure as I move forward, I will learn more things that I need to 
+    #  keep track of.
+    append_notes = open(run_path + '\\notes_' + current_time_directory + '.txt',"a")
+    append_notes.write('\n')
+    spectrum_text = str(i+1) + ": "
+    for s in source_strength:
+        spectrum_text += "   " + "{:.3}".format(s)
+    append_notes.write(spectrum_text + "\n")
+    append_notes.close()
 
 def define_which_source(which_source,E_bins,sdef_list):
     # This function is important in that it defines what neutron source is used
@@ -99,7 +115,10 @@ def define_which_source(which_source,E_bins,sdef_list):
     #  9 in 10 particles (see SB1 line) is directed at the PNS.
     # Source 4 - This source will be a point source located at x=30 cm
     #  consisting of a range of energies. It consists of the original 84 
-    #  energies that from the original PNS design.
+    #  energies that from the original PNS design. Each energy will have a 
+    #  random strength. This randomization is not realistic compared to a real
+    #  neutron spectrum though.
+    source_strength = 0
     if which_source == 1:
         for E in E_bins:
             sdef_list.append("sdef X=25 Y=D1 Z=D2 EXT=0 VEC=-1 0 0 DIR=1 PAR=N ERG="+str(E)+" EFF=0.000001\n")
@@ -122,9 +141,47 @@ def define_which_source(which_source,E_bins,sdef_list):
                     "SP1  0    "+str(1+cos_value)+"  "+str(1-cos_value)+"\n",
                     "SB1  0    1     9\n"]
         source_text = 'Source 3: A point source emitting radiation in a cone that encompasses only the detector.'
-    return source_text, sdef_mod
+    elif which_source == 4:
+        # Set the first source line
+        source_pos = 30
+        sdef_list.append("SDEF   POS="+str(source_pos)+" 0 0 ERG=d1 PAR=N  VEC=-1 0 0  DIR=d2\n")
+        # Initialize sdef_mod array
+        sdef_mod = []
+        # Define the source information with all of the energy values
+        SI1_text = "SI1 L"
+        i = 0
+        for E in E_bins:
+            i += 1
+            SI1_text += "    " + "{:.2e}".format(E)
+            if i == 10:
+                sdef_mod.append(SI1_text + "&\n")
+                SI1_text = ""
+                i = 0
+        sdef_mod.append(SI1_text + "\n")
+        
+        # Define the source strength for each energy
+        random_source_strength = [random.random() for _ in range(84)]
+        source_strength = [round(strength/sum(random_source_strength),3) for strength in random_source_strength]
+        SP1_text = "SP1 D"
+        i = 0
+        for S in source_strength:
+            i += 1
+            SP1_text += "    " + "{:.3}".format(S)
+            if i == 10:
+                sdef_mod.append(SP1_text + "&\n")
+                SP1_text = ""
+                i = 0
+        sdef_mod.append(SP1_text + "\n")
+        # Define the direction modification so that the neutrons are emitted in a cone at the PNS
+        cos_value = round(math.cos(math.atan(15/source_pos)),2)
+        sdef_mod.append("SI2  -1   0.9   1\n")
+        sdef_mod.append("SP2  0    "+str(1+cos_value)+"  "+str(1-cos_value)+"\n")
+        sdef_mod.append("SB2  0    1     9\n")
+        source_text = ''
+
+    return source_text, sdef_mod, source_strength
             
-def initialize_PNS_deck(run_path,filename,Ebin,Ebin_name):
+def initialize_PNS_deck(run_path,filename,Ebin):
     # This function makes a new file for each input deck. It also writes the
     #  first line of the input deck.
     # Input variables
@@ -139,9 +196,6 @@ def initialize_PNS_deck(run_path,filename,Ebin,Ebin_name):
         #  Example: '/PNS_X.XXeXMeV'
         # Ebin - This variable is a list of doubles and is defined in the file
         #  automatePNS.py. It contains each of the 84 energy bins.
-        # Ebin_name - This variable is a list of strings and is defined in the
-        #  file automatePNS.py. It contains a string for each of the 84 energy
-        #  bins so that each filename can be consistent.
     PNS_model = open(run_path + filename,"x")
     PNS_model.write("MCNP6 model of the LLNL PNS sphere ("+ str(Ebin)+ " MeV)\n")
     PNS_model.close()
@@ -876,20 +930,36 @@ def write_PNS_input(Ebins,Ebin_names,sdef_list,nps,which_source,numNodes,numCore
     #  the PNS input decks and batch files.
     sbatch_dir1 = make_today_dir()
     path,sbatch_dir2 = make_run_dir()
-    if which_source == 1 or 2 or 3 or 4:
+    if (which_source == 1) or (which_source == 2) or (which_source == 3):
         num_runs = len(Ebins)
-        source_text, sdef_mod = define_which_source(which_source, Ebins, sdef_list)
+        source_text, sdef_mod, source_strength = define_which_source(which_source, Ebins, sdef_list)
         write_run_notes(path,sbatch_dir2,num_runs,source_text)
         write_sbatch(path,sbatch_dir1,sbatch_dir2,Ebins,Ebin_names,numNodes,numCores)
         write_sbatch_continuation(path,sbatch_dir1,sbatch_dir2,Ebins,Ebin_names,numNodes,numCores)
     
         for E in range(num_runs):
             filename = "\PNS_" + Ebin_names[E]
-            initialize_PNS_deck(path,filename,Ebins[E],Ebin_names[E])
+            initialize_PNS_deck(path,filename,Ebins[E])
             write_cell_card(path,filename)
             write_surf_card(path,filename,which_source)
             write_material_card(path,filename)
+            print('the code went here?')
             write_source_card(path,filename,sdef_list[E],sdef_mod)
+            write_tally_card(path,filename)
+            write_print_card(path,filename,nps)
+    elif which_source == 4:
+        num_runs = 20
+        source_text = "The source for this is a random spectrum, more info below\n"
+        write_run_notes(path,sbatch_dir2,num_runs,source_text)
+        for i in range(num_runs):
+            filename = "\Run" + str(i+1) + "_rand_energy"
+            initialize_PNS_deck(path,filename,0)
+            write_cell_card(path,filename)
+            write_surf_card(path,filename,which_source)
+            write_material_card(path,filename)
+            source_text, sdef_mod, source_strength = define_which_source(which_source,Ebins,sdef_list)
+            append_run_notes(path,sbatch_dir2,i,source_strength)
+            write_source_card(path,filename,sdef_list[i],sdef_mod)
             write_tally_card(path,filename)
             write_print_card(path,filename,nps)
     
