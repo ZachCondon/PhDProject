@@ -55,16 +55,16 @@ import generateModel as gm
 #  automate a randomized source for neutrons. I think a point source will be 
 #  easiest to randomize, but I will also need to look into distributed sources,
 #  such as a line source or a plane source.
-nps = "1e6"
+nps = "1e10"
 numNodes = 1
-numCores = 1
+numCores = 36
 # Below are the source options
 # Option 1 is the original source, which is a plane source directing particles 
 #  to the detector. This source seems to imitate a neutron beam.
 # Option 2 is a spherical shell source directing particles inward
 # Option 3 (not implemented yet) will be a point source that will direct
 #  particles only at the detector with the appropriate weighting.
-which_source = 4
+which_source = 2
 sdef_list = []
 
 # As of right now, the following parameters should NOT be changed. These are 
@@ -86,23 +86,25 @@ E_bins = [1e-9,1.58e-9,2.51e-9,3.98e-9,6.31e-9,
           1e1,1.12e1,1.26e1,1.41e1,1.58e1,1.78e1,2e1,2.51e1,3.16e1,3.98e1,
           5.01e1,6.31e1,7.94e1,1e2]
 
-E_bin_names = ["1e-9MeV","1.58e-9MeV","2.51e-9MeV","3.98e-9MeV","6.31e-9MeV",
-               "1e-8MeV","1.58e-8MeV","2.51e-8MeV","3.98e-8MeV","6.31e-8MeV",
-               "1e-7MeV","1.58e-7MeV","2.51e-7MeV","3.98e-7MeV","6.31e-7MeV",
-               "1e-6MeV","1.58e-6MeV","2.51e-6MeV","3.98e-6MeV","6.31e-6MeV",
-               "1e-5MeV","1.58e-5MeV","2.51e-5MeV","3.98e-5MeV","6.31e-5MeV",
-               "1e-4MeV","1.58e-4MeV","2.51e-4MeV","3.98e-4MeV","6.31e-4MeV",
-               "1e-3MeV","1.58e-3MeV","2.51e-3MeV","3.98e-3MeV","6.31e-3MeV",
-               "1e-2MeV","1.58e-2MeV","2.51e-2MeV","3.98e-2MeV","6.31e-2MeV",
-               "1e-1MeV","1.26e-1MeV","1.58e-1MeV","2e-1MeV","2.51e-1MeV",
-               "3.16e-1MeV","3.98e-1MeV","5.01e-1MeV","6.31e-1MeV","7.94e-1MeV",
-               "1e0MeV","1.12e0MeV","1.26e0MeV","1.41e0MeV","1.58e0MeV",
-               "1.78e0MeV","2e0MeV","2.24e0MeV","2.51e0MeV","2.82e0MeV",
-               "3.16e0MeV","3.55e0MeV","3.98e0MeV","4.47e0MeV","5.01e0MeV",
-               "5.62e0MeV","6.31e0MeV","7.08e0MeV","7.94e0MeV","8.91e0MeV",
-               "1e1MeV","1.12e1MeV","1.26e1MeV","1.41e1MeV","1.58e1MeV",
-               "1.78e1MeV","2e1MeV","2.51e1MeV","3.16e1MeV","3.98e1MeV",
-               "5.01e1MeV","6.31e1MeV","7.94e1MeV","1e2MeV"]
+# All these E_bin_names should have a period after the first number, but that
+#  period wasn't working with file naming systems, so I omitted it.
+E_bin_names = ["1e-9MeV","158e-9MeV","251e-9MeV","398e-9MeV","631e-9MeV",
+               "1e-8MeV","158e-8MeV","251e-8MeV","398e-8MeV","631e-8MeV",
+               "1e-7MeV","158e-7MeV","251e-7MeV","398e-7MeV","631e-7MeV",
+               "1e-6MeV","158e-6MeV","251e-6MeV","398e-6MeV","631e-6MeV",
+               "1e-5MeV","158e-5MeV","251e-5MeV","398e-5MeV","631e-5MeV",
+               "1e-4MeV","158e-4MeV","251e-4MeV","398e-4MeV","631e-4MeV",
+               "1e-3MeV","158e-3MeV","251e-3MeV","398e-3MeV","631e-3MeV",
+               "1e-2MeV","158e-2MeV","251e-2MeV","398e-2MeV","631e-2MeV",
+               "1e-1MeV","126e-1MeV","158e-1MeV","2e-1MeV","251e-1MeV",
+               "316e-1MeV","398e-1MeV","501e-1MeV","631e-1MeV","794e-1MeV",
+               "1e0MeV","112e0MeV","126e0MeV","141e0MeV","158e0MeV",
+               "178e0MeV","2e0MeV","224e0MeV","251e0MeV","282e0MeV",
+               "316e0MeV","355e0MeV","398e0MeV","447e0MeV","501e0MeV",
+               "562e0MeV","631e0MeV","708e0MeV","794e0MeV","891e0MeV",
+               "1e1MeV","112e1MeV","126e1MeV","141e1MeV","158e1MeV",
+               "178e1MeV","2e1MeV","251e1MeV","316e1MeV","398e1MeV",
+               "501e1MeV","631e1MeV","794e1MeV","1e2MeV"]
 
 # This last line of code initiates the execution that generates the input decks
 #  and batch files.

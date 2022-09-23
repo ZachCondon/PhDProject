@@ -58,6 +58,11 @@ def write_run_notes(run_path,current_time_directory,num_runs,source_text):
     #  run. Ideally, I will have set things that I will record each time, but
     #  I am sure as I move forward, I will learn more things that I need to 
     #  keep track of.
+    # The format of the input variables is:
+        # run_path = "C:/Users/zacht/OneDrive/OSU/Research/MCNP/PNS Model/2022-08-18/2022-08-18_1526"
+        # current_time_directory = "2022-08-18_1526"
+        # num_runs = "84"
+        # source_text = ["xxx","xxx","xxx",...]
     run_notes = open(run_path + '\\notes_' + current_time_directory + '.txt',"x")
     now = datetime.now()
     run_notes.write(f'*****Notes for PNS model run generated at {now.strftime("%Y-%m-%d_%H%M")}*****. \n')
@@ -77,10 +82,18 @@ def write_run_notes(run_path,current_time_directory,num_runs,source_text):
     run_notes.close()
     
 def append_run_notes(run_path,current_time_directory,i,source_strength):
-    # This function writes a .txt file and allows me to input notes for each 
-    #  run. Ideally, I will have set things that I will record each time, but
-    #  I am sure as I move forward, I will learn more things that I need to 
-    #  keep track of.
+    # This function appends the notes file for this simulation with the energy
+    # information that is generated randomly.
+    # The format of the input variables is:
+        # run_path = "C:/Users/zacht/OneDrive/OSU/Research/MCNP/PNS Model/2022-08-18/2022-08-18_1532"
+        # current_time_directory = "2022-08-18_1532"
+        # i = N
+            # The variable "i" is the number of simulations that are generated
+            # and each simulation has a random number of randomly generated
+            # energy values.
+        # source_strength = [N.NNN, N.NNN, N.NNN, ...]
+            # This variable will be a random length that corresponds to the 
+            # number of randomized energy values for each simulation.
     append_notes = open(run_path + '\\notes_' + current_time_directory + '.txt',"a")
     append_notes.write('\n')
     spectrum_text = str(i+1) + ": "
@@ -113,11 +126,14 @@ def define_which_source(which_source,E_bins,sdef_list):
     # Source 3 - This is a single-energy, point source located at x=30 cm that 
     #  emits particles in a cone directed at the sphere. The cone ensures that
     #  9 in 10 particles (see SB1 line) is directed at the PNS.
-    # Source 4 - This source will be a point source located at x=30 cm
-    #  consisting of a range of energies. It consists of the original 84 
-    #  energies that from the original PNS design. Each energy will have a 
-    #  random strength. This randomization is not realistic compared to a real
-    #  neutron spectrum though.
+    # Source 4 - This source will be a point source located at a random
+    #  location at a distance of 30 to 100 cm and consists of a range of
+    #  energies. It consists of the original 84 energy bins from the original 
+    #  PNS design. Each energy will have a random strength. This randomization 
+    #  is not realistic compared to a real neutron spectrum though.
+    # Source 5 - This is six sources, along all of the Cartesian axes (positive
+    #  x, negative x, positive y, etc.). This source is used to make the 
+    #  simulation symmetric to make a detector response matrix.
     source_strength = 0
     if which_source == 1:
         for E in E_bins:
@@ -129,7 +145,7 @@ def define_which_source(which_source,E_bins,sdef_list):
         source_text = 'Source 1: Plane source emitted toward detector (original source).'
     elif which_source == 2:
         for E in E_bins:
-            sdef_list.append("SDEF   SUR=999   NRM=-1   PAR=N   ERG="+str(E)+"\n")
+            sdef_list.append("SDEF   SUR=9999   NRM=-1   PAR=N   ERG="+str(E)+"\n")
         sdef_mod = []
         source_text = 'Source 2: Spherical shell encompassing detector, emitting inward.'
     elif which_source == 3:
@@ -143,8 +159,8 @@ def define_which_source(which_source,E_bins,sdef_list):
         source_text = 'Source 3: A point source emitting radiation in a cone that encompasses only the detector.'
     elif which_source == 4:
         # Set the first source line
-        source_pos = 30
-        sdef_list.append("SDEF   POS="+str(source_pos)+" 0 0 ERG=d1 PAR=N  VEC=-1 0 0  DIR=d2\n")
+        source_pos = [round(random.uniform(30,100),1), round(random.uniform(30,100),1), round(random.uniform(30,100),1)]
+        sdef_list.append("SDEF   POS="+str(source_pos[0])+" "+str(source_pos[1])+" "+str(source_pos[2])+" ERG=d1 PAR=N  VEC=-"+str(source_pos[0])+" -"+str(source_pos[1])+" -"+str(source_pos[2])+"  DIR=d2\n")
         # Initialize sdef_mod array
         sdef_mod = []
         # Define the source information with all of the energy values
@@ -173,11 +189,40 @@ def define_which_source(which_source,E_bins,sdef_list):
                 i = 0
         sdef_mod.append(SP1_text + "\n")
         # Define the direction modification so that the neutrons are emitted in a cone at the PNS
-        cos_value = round(math.cos(math.atan(15/source_pos)),2)
-        sdef_mod.append("SI2  -1   0.9   1\n")
-        sdef_mod.append("SP2  0    "+str(1+cos_value)+"  "+str(1-cos_value)+"\n")
-        sdef_mod.append("SB2  0    1     9\n")
+        distance_sourceToDetector = math.sqrt(source_pos[0]**2+source_pos[1]**2+source_pos[2]**2)
+        mu = round(math.cos(math.atan(15/distance_sourceToDetector)),4)
+        sdef_mod.append("SI2  -1   "+str(mu)+"   1\n")
+        sdef_mod.append("SP2  0    "+str(1+mu)+"  "+str(1-mu)+"\n")
+        sdef_mod.append("SB2  0    1     99\n")
         source_text = ''
+    elif which_source == 5:
+        for E in E_bins:
+            sdef_list.append("SDEF POS=d1 VEC=FPOS=d2 PAR=N ERG="+str(E)+" DIR=d9\n")
+        sdef_mod = []
+        sdef_mod.append("SI1 L  -50 0 0   50 0 0   0 50 0   0 -50 0   0 0 50   0 0 -50\n")
+        sdef_mod.append("SP1    .166     .167     .166     .167      .167     .167\n")
+        sdef_mod.append("DS2 L   50 0 0  -50 0 0   0 -50 0  0 50 0   0 0 -50   0 0 50\n")
+        mu = round(math.cos(math.atan(15/50)),4)
+        sdef_mod.append("SI9    -1   "+str(mu)+"   1\n")
+        sdef_mod.append("SP9     0    "+str(1+mu)+"  "+str(1-mu)+"\n")
+        sdef_mod.append("SB9     0    1     99\n")
+        
+        
+        # for E in E_bins:
+        #     sdef_list.append((
+        #         "sdef POS=50 0 0 ERG="+str(E)+" PAR=N VEC=-50 0 0 DIR=d1\n",
+        #         "sdef POS=-50 0 0 ERG="+str(E)+" PAR=N VEC=50 0 0 DIR=d2\n",
+        #         "sdef POS=0 50 0 ERG="+str(E)+" PAR=N VEC=0 -50 0 DIR=d3\n",
+        #         "sdef POS=0 -50 0 ERG="+str(E)+" PAR=N VEC=0 50 0 DIR=d4\n",
+        #         "sdef POS=0 0 50 ERG="+str(E)+" PAR=N VEC=0 0 -50 DIR=d5\n",
+        #         "sdef POS=0 0 -50 ERG="+str(E)+" PAR=N VEC=0 0 50 DIR=d6\n"))
+        # sdef_mod = []
+        # mu = round(math.cos(math.atan(15/50)),4)
+        # for i in range(6):
+        #     sdef_mod.append("SI"+str(i+1)+"  -1   "+str(mu)+"   1\n")
+        #     sdef_mod.append("SP"+str(i+1)+"  0    "+str(1+mu)+"  "+str(1-mu)+"\n")
+        #     sdef_mod.append("SB"+str(i+1)+"  0    1     99\n")
+        source_text = 'Source 5: Point sources on each of six axes.'
 
     return source_text, sdef_mod, source_strength
             
@@ -316,8 +361,10 @@ def write_cell_card(run_path,filename):
     PNS_model.write("252 24 -1.42 -204 TRCL= (-1 0 -13) "+ imp1+ "\n")
     PNS_model.write("253 24 -1.42 -203 TRCL= (-1 0 14) "+ imp1+ "\n")
     PNS_model.write("254 24 -1.42 -204 TRCL= (-1 0 -14) "+ imp1+ "\n")
+    print('Detector material options: 22=>Li6, 2=>Au')
+    detectorMaterial = input('Which material for detector? ')
     PNS_model.write("C    X-axis Li-6\n")
-    PNS_model.write("400 22 -2.635 -400 "+ imp3+ "\n")
+    PNS_model.write("400 "+ detectorMaterial + " -2.635 -400 "+ imp3+ "\n")
     PNS_model.write(TRCL(401, 400, 3, 0, 0))
     PNS_model.write(TRCL(402, 400, -3, 0, 0))
     PNS_model.write(TRCL(403, 400, 6, 0, 0))
@@ -337,43 +384,43 @@ def write_cell_card(run_path,filename):
     PNS_model.write(TRCL(417, 400, 14, 0, 0))
     PNS_model.write(TRCL(418, 400, -14, 0, 0))
     PNS_model.write("C    Y-axis Li-6\n")
-    PNS_model.write("419 22 -2.635 -401 TRCL= (0 3 0) "+ imp3+ "\n")
-    PNS_model.write("420 22 -2.635 -402 TRCL= (0 -3 0) "+ imp3+ "\n")
-    PNS_model.write("421 22 -2.635 -401 TRCL= (0 6 0) "+ imp3+ "\n")
-    PNS_model.write("422 22 -2.635 -402 TRCL= (0 -5.8 0) "+ imp3+ "\n")
-    PNS_model.write("423 22 -2.635 -401 TRCL= (0 8 0) "+ imp3+ "\n")
-    PNS_model.write("424 22 -2.635 -402 TRCL= (0 -7.8 0) "+ imp3+ "\n")
-    PNS_model.write("425 22 -2.635 -401 TRCL= (0 9 0) "+ imp3+ "\n")
-    PNS_model.write("426 22 -2.635 -402 TRCL= (0 -8.8 0) "+ imp3+ "\n")
-    PNS_model.write("427 22 -2.635 -401 TRCL= (0 10 0) "+ imp3+ "\n")
-    PNS_model.write("428 22 -2.635 -402 TRCL= (0 -10 0) "+ imp3+ "\n")
-    PNS_model.write("429 22 -2.635 -401 TRCL= (0 11 0) "+ imp3+ "\n")
-    PNS_model.write("430 22 -2.635 -402 TRCL= (0 -11 0) "+ imp3+ "\n")
-    PNS_model.write("431 22 -2.635 -401 TRCL= (0 12 0) "+ imp3+ "\n")
-    PNS_model.write("432 22 -2.635 -402 TRCL= (0 -12 0) "+ imp3+ "\n")
-    PNS_model.write("433 22 -2.635 -401 TRCL= (0 13 0) "+ imp3+ "\n")
-    PNS_model.write("434 22 -2.635 -402 TRCL= (0 -13 0) "+ imp3+ "\n")
-    PNS_model.write("435 22 -2.635 -401 TRCL= (0 14 0) "+ imp3+ "\n")
-    PNS_model.write("436 22 -2.635 -402 TRCL= (0 -14 0) "+ imp3+ "\n")
+    PNS_model.write("419 "+ detectorMaterial + " -2.635 -401 TRCL= (0 3 0) "+ imp3+ "\n")
+    PNS_model.write("420 "+ detectorMaterial + " -2.635 -402 TRCL= (0 -3 0) "+ imp3+ "\n")
+    PNS_model.write("421 "+ detectorMaterial + " -2.635 -401 TRCL= (0 6 0) "+ imp3+ "\n")
+    PNS_model.write("422 "+ detectorMaterial + " -2.635 -402 TRCL= (0 -5.8 0) "+ imp3+ "\n")
+    PNS_model.write("423 "+ detectorMaterial + " -2.635 -401 TRCL= (0 8 0) "+ imp3+ "\n")
+    PNS_model.write("424 "+ detectorMaterial + " -2.635 -402 TRCL= (0 -7.8 0) "+ imp3+ "\n")
+    PNS_model.write("425 "+ detectorMaterial + " -2.635 -401 TRCL= (0 9 0) "+ imp3+ "\n")
+    PNS_model.write("426 "+ detectorMaterial + " -2.635 -402 TRCL= (0 -8.8 0) "+ imp3+ "\n")
+    PNS_model.write("427 "+ detectorMaterial + " -2.635 -401 TRCL= (0 10 0) "+ imp3+ "\n")
+    PNS_model.write("428 "+ detectorMaterial + " -2.635 -402 TRCL= (0 -10 0) "+ imp3+ "\n")
+    PNS_model.write("429 "+ detectorMaterial + " -2.635 -401 TRCL= (0 11 0) "+ imp3+ "\n")
+    PNS_model.write("430 "+ detectorMaterial + " -2.635 -402 TRCL= (0 -11 0) "+ imp3+ "\n")
+    PNS_model.write("431 "+ detectorMaterial + " -2.635 -401 TRCL= (0 12 0) "+ imp3+ "\n")
+    PNS_model.write("432 "+ detectorMaterial + " -2.635 -402 TRCL= (0 -12 0) "+ imp3+ "\n")
+    PNS_model.write("433 "+ detectorMaterial + " -2.635 -401 TRCL= (0 13 0) "+ imp3+ "\n")
+    PNS_model.write("434 "+ detectorMaterial + " -2.635 -402 TRCL= (0 -13 0) "+ imp3+ "\n")
+    PNS_model.write("435 "+ detectorMaterial + " -2.635 -401 TRCL= (0 14 0) "+ imp3+ "\n")
+    PNS_model.write("436 "+ detectorMaterial + " -2.635 -402 TRCL= (0 -14 0) "+ imp3+ "\n")
     PNS_model.write("C    Z-axis Li-6\n")
-    PNS_model.write("437 22 -2.635 -403 TRCL= (-1 0 3) "+ imp3+ "\n")
-    PNS_model.write("438 22 -2.635 -404 TRCL= (-1 0 -3) "+ imp3+ "\n")
-    PNS_model.write("439 22 -2.635 -403 TRCL= (-1 0 6) "+ imp3+ "\n")
-    PNS_model.write("440 22 -2.635 -404 TRCL= (-1 0 -5.8) "+ imp3+ "\n")
-    PNS_model.write("441 22 -2.635 -403 TRCL= (-1 0 8) "+ imp3+ "\n")
-    PNS_model.write("442 22 -2.635 -404 TRCL= (-1 0 -7.8) "+ imp3+ "\n")
-    PNS_model.write("443 22 -2.635 -403 TRCL= (-1 0 9) "+ imp3+ "\n")
-    PNS_model.write("444 22 -2.635 -404 TRCL= (-1 0 -8.8) "+ imp3+ "\n")
-    PNS_model.write("445 22 -2.635 -403 TRCL= (-1 0 10) "+ imp3+ "\n")
-    PNS_model.write("446 22 -2.635 -404 TRCL= (-1 0 -10) "+ imp3+ "\n")
-    PNS_model.write("447 22 -2.635 -403 TRCL= (-1 0 11) "+ imp3+ "\n")
-    PNS_model.write("448 22 -2.635 -404 TRCL= (-1 0 -11) "+ imp3+ "\n")
-    PNS_model.write("449 22 -2.635 -403 TRCL= (-1 0 12) "+ imp3+ "\n")
-    PNS_model.write("450 22 -2.635 -404 TRCL= (-1 0 -12) "+ imp3+ "\n")
-    PNS_model.write("451 22 -2.635 -403 TRCL= (-1 0 13) "+ imp3+ "\n")
-    PNS_model.write("452 22 -2.635 -404 TRCL= (-1 0 -13) "+ imp3+ "\n")
-    PNS_model.write("453 22 -2.635 -403 TRCL= (-1 0 14) "+ imp3+ "\n")
-    PNS_model.write("454 22 -2.635 -404 TRCL= (-1 0 -14) "+ imp3+ "\n")
+    PNS_model.write("437 "+ detectorMaterial + " -2.635 -403 TRCL= (-1 0 3) "+ imp3+ "\n")
+    PNS_model.write("438 "+ detectorMaterial + " -2.635 -404 TRCL= (-1 0 -3) "+ imp3+ "\n")
+    PNS_model.write("439 "+ detectorMaterial + " -2.635 -403 TRCL= (-1 0 6) "+ imp3+ "\n")
+    PNS_model.write("440 "+ detectorMaterial + " -2.635 -404 TRCL= (-1 0 -5.8) "+ imp3+ "\n")
+    PNS_model.write("441 "+ detectorMaterial + " -2.635 -403 TRCL= (-1 0 8) "+ imp3+ "\n")
+    PNS_model.write("442 "+ detectorMaterial + " -2.635 -404 TRCL= (-1 0 -7.8) "+ imp3+ "\n")
+    PNS_model.write("443 "+ detectorMaterial + " -2.635 -403 TRCL= (-1 0 9) "+ imp3+ "\n")
+    PNS_model.write("444 "+ detectorMaterial + " -2.635 -404 TRCL= (-1 0 -8.8) "+ imp3+ "\n")
+    PNS_model.write("445 "+ detectorMaterial + " -2.635 -403 TRCL= (-1 0 10) "+ imp3+ "\n")
+    PNS_model.write("446 "+ detectorMaterial + " -2.635 -404 TRCL= (-1 0 -10) "+ imp3+ "\n")
+    PNS_model.write("447 "+ detectorMaterial + " -2.635 -403 TRCL= (-1 0 11) "+ imp3+ "\n")
+    PNS_model.write("448 "+ detectorMaterial + " -2.635 -404 TRCL= (-1 0 -11) "+ imp3+ "\n")
+    PNS_model.write("449 "+ detectorMaterial + " -2.635 -403 TRCL= (-1 0 12) "+ imp3+ "\n")
+    PNS_model.write("450 "+ detectorMaterial + " -2.635 -404 TRCL= (-1 0 -12) "+ imp3+ "\n")
+    PNS_model.write("451 "+ detectorMaterial + " -2.635 -403 TRCL= (-1 0 13) "+ imp3+ "\n")
+    PNS_model.write("452 "+ detectorMaterial + " -2.635 -404 TRCL= (-1 0 -13) "+ imp3+ "\n")
+    PNS_model.write("453 "+ detectorMaterial + " -2.635 -403 TRCL= (-1 0 14) "+ imp3+ "\n")
+    PNS_model.write("454 "+ detectorMaterial + " -2.635 -404 TRCL= (-1 0 -14) "+ imp3+ "\n")
     PNS_model.write("C    X-axis back casing of Li-6\n")
     PNS_model.write("300 24 -1.42 -300 "+ imp1+ "\n")
     PNS_model.write(TRCL(301, 300, 3, 0, 0))
@@ -657,7 +704,7 @@ def write_surf_card(run_path,filename,which_source):
     PNS_model = open(run_path + filename, "a")
     PNS_model.write("C    *************SURFACE CARD************\n")
     PNS_model.write("C    -----Container for entire sphere-----\n")
-    PNS_model.write("800  RPP -50 50 -50 50 -61.2 50\n")
+    PNS_model.write("800  RPP -110 110 -110 110 -161.2 110\n")
     PNS_model.write("C    -----SPHERE AND CYLINDER INSERTS-----\n")
     PNS_model.write("20000 SPH   0 0 0   " + str(r) + "\n")
     PNS_model.write("20100 RCC   -" +str(r)+ " 0 0    " +str(2*r)+ " 0 0   " +str(r_cyl)+ " $ X-axis cyl\n")
@@ -733,7 +780,7 @@ def write_surf_card(run_path,filename,which_source):
     PNS_model.write("2021  RCC  12.8  7.4  -31.00 -6.48 -3.75 17.2 0.4   $ Leg\n")
     PNS_model.write("2022  RCC -12.8  7.4  -31.00  6.48 -3.75 17.2 0.4   $ Leg\n")
     PNS_model.write("C    -----------SOURCE SURFACES-----------\n")
-    PNS_model.write("999   SPH   0 0 0 50\n")
+    PNS_model.write("9999   SPH   0 0 0 50\n")
     PNS_model.write("C    ***********END OF SURFACES***********\n")
     PNS_model.write("\n")   # blank line at the end of the surface card
     PNS_model.close()
@@ -751,6 +798,8 @@ def write_material_card(run_path,filename):
     PNS_model.write("mt1     lwtr.60t\n")
     PNS_model.write("C       Al  aluminum, den = 2.7 g/cm3\n")
     PNS_model.write("m3      13027 -1\n")
+    PNS_model.write("C       Au  gold, den = 19.1 g/cm3\n")
+    PNS_model.write("m2      79197 -1\n")
     PNS_model.write("C 	POLYETHLENE, NON-BORATED, C2H4\n")
     PNS_model.write("m20	 1001.80C 	0.333338	$ H\n")
     PNS_model.write("		 6000.80C 	0.666662 	$ C\n")
@@ -773,7 +822,11 @@ def write_source_card(run_path,filename,sdef,sdef_mod):
     PNS_model = open(run_path + filename, "a")
     PNS_model.write("C    *************SOURCE CARD*************\n")
     PNS_model.write("mode  n a p e  $ Transport neutrons\n")
-    PNS_model.write(sdef)
+    if isinstance(sdef,str):
+        PNS_model.write(sdef)
+    elif isinstance(sdef,tuple):
+        for line in sdef:
+            PNS_model.write(sdef)
     for line in sdef_mod:
         PNS_model.write(line)
     PNS_model.write("C    ************END OF SOURCE************\n")
@@ -855,7 +908,7 @@ def write_print_card(run_path,filename,nps):
     PNS_model.write("C    *************PRINT CARD**************\n")
     PNS_model.write("dbcn  7j  1 0 0 0 0 154917 j\n") # This appears to be a debugging code?
     PNS_model.write("C        ndp     ndm     mct ndmp dmmp  Values below ckecked by LCh\n")
-    PNS_model.write("prdmp   1.0e+08  2.5e+08  1   4    0\n")
+    PNS_model.write("prdmp   1.0e+09  0         1   2    0\n")
     PNS_model.write("ctme    57600      $ 1200\n")
     PNS_model.write("nps  "+nps+"\n")
     
@@ -887,6 +940,40 @@ def write_sbatch(run_path,dir1,dir2,Ebins,Ebin_names,numNodes,numCores):
     sbatch_file.write("echo 'Job_id = $SLURM_JOBID'\n")
     for ebin_name in Ebin_names:
         sbatch_file.write("srun -N"+str(numNodes)+" -n"+str(numCores)+" mcnp6 i=PNS_"+str(ebin_name)+" o=out_PNS_"+str(ebin_name)+" runtpe=r_PNS_"+str(ebin_name)+" &\n")
+    sbatch_file.write("\n")
+    sbatch_file.write("wait\n")
+    sbatch_file.write("echo 'Done'")
+    sbatch_file.close()
+
+def write_sbatch_spectrum(run_path,dir1,dir2,num_runs):
+    # This function writes the SBATCH file which is what is needed to run these
+    #  input decks on Quartz. This function focuses on writing the sbtach file 
+    #  for the input decks that contain an energy spectrum.
+    sbatch_file = open(run_path + '\\' + dir1 + "batch.bash","x",newline='\n')
+    sbatch_file.write("#!/bin/csh\n")
+    sbatch_file.write("#SBATCH -N " + str(num_runs) + "\n")
+    sbatch_file.write("#SBATCH -J Condon_PNS" + str(dir2) + "\n")
+    sbatch_file.write("#SBATCH -t 23:30:00\n")
+    sbatch_file.write("#SBATCH -p pbatch\n")
+    sbatch_file.write("#SBATCH --mail-type=ALL\n")
+    sbatch_file.write("#SBATCH -A cbronze\n")
+    sbatch_file.write("#SBATCH -D /g/g20/condon3/PNS/" + dir2 + "\n")
+    sbatch_file.write("\n")
+    sbatch_file.write("echo '=================Job diagnostics================='\n")
+    sbatch_file.write("date\n")
+    sbatch_file.write("echo -n 'This machine is ';hostname\n")
+    sbatch_file.write("echo -n 'My jobid is '; echo $SLURM_JOBID\n")
+    sbatch_file.write("echo 'My path is:'\n")
+    sbatch_file.write("echo $PATH\n")
+    sbatch_file.write("echo 'My job info:'\n")
+    sbatch_file.write("squeue -j $SLURM_JOBID\n")
+    sbatch_file.write("echo 'Machine info'\n")
+    sbatch_file.write("sinfo -s\n")
+    sbatch_file.write("\n")
+    sbatch_file.write("echo '=================Job Starting================='\n")
+    sbatch_file.write("echo 'Job_id = $SLURM_JOBID'\n")
+    for i in range(num_runs):
+        sbatch_file.write("srun -N1 -n1 mcnp6 i=Run"+str(i+1)+"_rand_energy o=out_Run"+str(i+1)+"_rand_energy runtpe=r_Run"+str(i+1)+"_rand_energy &\n")
     sbatch_file.write("\n")
     sbatch_file.write("wait\n")
     sbatch_file.write("echo 'Done'")
@@ -925,32 +1012,65 @@ def write_sbatch_continuation(run_path,dir1,dir2,Ebins,Ebin_names,numNodes,numCo
     sbatch_file.write("echo 'Done'")
     sbatch_file.close()
 
+def write_sbatch_continuation_spectrum(run_path,dir1,dir2,num_runs):
+    # Quartz has a 24 hour time limit. In case that limit gets hit by the first
+    #  batch file, this one will take the runtp files and continue the run.
+    sbatch_file = open(run_path + '\\' + dir1 + "batch_cont.bash","x",newline='\n')
+    sbatch_file.write("#!/bin/csh\n")
+    sbatch_file.write("#SBATCH -N " + str(num_runs) + "\n")
+    sbatch_file.write("#SBATCH -J Condon_PNS" + str(dir2) + "\n")
+    sbatch_file.write("#SBATCH -t 23:30:00\n")
+    sbatch_file.write("#SBATCH -p pbatch\n")
+    sbatch_file.write("#SBATCH --mail-type=ALL\n")
+    sbatch_file.write("#SBATCH -A cbronze\n")
+    sbatch_file.write("#SBATCH -D /g/g20/condon3/PNS/" + dir2 + "\n")
+    sbatch_file.write("\n")
+    sbatch_file.write("echo '=================Job diagnostics================='\n")
+    sbatch_file.write("date\n")
+    sbatch_file.write("echo -n 'This machine is ';hostname\n")
+    sbatch_file.write("echo -n 'My jobid is '; echo $SLURM_JOBID\n")
+    sbatch_file.write("echo 'My path is:'\n")
+    sbatch_file.write("echo $PATH\n")
+    sbatch_file.write("echo 'My job info:'\n")
+    sbatch_file.write("squeue -j $SLURM_JOBID\n")
+    sbatch_file.write("echo 'Machine info'\n")
+    sbatch_file.write("sinfo -s\n")
+    sbatch_file.write("\n")
+    sbatch_file.write("echo '=================Job Starting================='\n")
+    sbatch_file.write("echo 'Job_id = $SLURM_JOBID'\n")
+    for i in range(num_runs):
+        sbatch_file.write("srun -N1 -n1 mcnp6 c r=r_Run"+str(i+1)+"_rand_energy o=out_Run"+str(i+1)+"_rand_energy_cont&\n")
+    sbatch_file.write("\n")
+    sbatch_file.write("wait\n")
+    sbatch_file.write("echo 'Done'")
+    sbatch_file.close()
+    
 def write_PNS_input(Ebins,Ebin_names,sdef_list,nps,which_source,numNodes,numCores):
     # This is the main function that calls all of the other functions to write
     #  the PNS input decks and batch files.
     sbatch_dir1 = make_today_dir()
     path,sbatch_dir2 = make_run_dir()
-    if (which_source == 1) or (which_source == 2) or (which_source == 3):
+    if (which_source == 1) or (which_source == 2) or (which_source == 3) or (which_source == 5):
         num_runs = len(Ebins)
         source_text, sdef_mod, source_strength = define_which_source(which_source, Ebins, sdef_list)
         write_run_notes(path,sbatch_dir2,num_runs,source_text)
         write_sbatch(path,sbatch_dir1,sbatch_dir2,Ebins,Ebin_names,numNodes,numCores)
         write_sbatch_continuation(path,sbatch_dir1,sbatch_dir2,Ebins,Ebin_names,numNodes,numCores)
-    
         for E in range(num_runs):
             filename = "\PNS_" + Ebin_names[E]
             initialize_PNS_deck(path,filename,Ebins[E])
             write_cell_card(path,filename)
             write_surf_card(path,filename,which_source)
             write_material_card(path,filename)
-            print('the code went here?')
             write_source_card(path,filename,sdef_list[E],sdef_mod)
             write_tally_card(path,filename)
             write_print_card(path,filename,nps)
     elif which_source == 4:
-        num_runs = 20
+        num_runs = 1
         source_text = "The source for this is a random spectrum, more info below\n"
         write_run_notes(path,sbatch_dir2,num_runs,source_text)
+        write_sbatch_spectrum(path,sbatch_dir1,sbatch_dir2,num_runs)
+        write_sbatch_continuation_spectrum(path,sbatch_dir1,sbatch_dir2,num_runs)
         for i in range(num_runs):
             filename = "\Run" + str(i+1) + "_rand_energy"
             initialize_PNS_deck(path,filename,0)
