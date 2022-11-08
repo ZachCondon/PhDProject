@@ -65,7 +65,7 @@ Current scripts used:
       get_fom_tallies():
     IMPROVEMENTS NEEDED: Update so that notes is an included portion of the pickle file that is saved.
 
-objectivizeData.py
+4. objectivizeData.py
     OVERVIEW: This function makes an object containing all of the data that I've gathered. This script is in a folder with all of my completed MCNP simulations.
     OUTPUTS: An object containg all data.
     USER INPUTS: None
