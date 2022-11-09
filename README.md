@@ -12,8 +12,7 @@ Current scripts used:
 
 1. automatePNS.py
 
-    OVERVIEW: This is the master script that generates the folder containing the files for running MCNP simulations of the PNS.
-    
+    OVERVIEW: This is the master script that generates the folder containing the files for running MCNP simulations of the PNS.  
     OUTPUTS: The output of this is a folder that contains all of the files necessary to perform a simulation of the PNS on quartz (see improvements needed).
     USER INPUTS: 
       nps - a string for the desired number of particles to be simulated. For simulations that I've done, 1e10 can be completed in 18 hours on quartz.
